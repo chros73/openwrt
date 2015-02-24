@@ -1,0 +1,50 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006-2012 OpenWrt.org
+
+START=99
+
+user="root"
+base="/root"
+config="$base/.rtorrent.rc"
+srnname="ArcherC5"
+running=0
+
+
+getSession() {
+    session=`cat "$1" | grep "^[[:space:]]*session[[:space:]]*=" | sed "s/^[[:space:]]*session[[:space:]]*=[[:space:]]*//" `
+    echo $session
+}
+
+
+isRunning() {
+    session=`cat "$config" | grep "^[[:space:]]*session[[:space:]]*=" | sed "s/^[[:space:]]*session[[:space:]]*=[[:space:]]*//" `
+    if [ -s ${session}/rtorrent.lock ] ; then
+	pid=`cat ${session}/rtorrent.lock | awk -F: '{print($2)}' | sed "s/[^0-9]//g"`
+	# make sure the pid doesn't belong to another process : this will match lines containing rtorrent, which grep '[r]torrent' does not!
+	if ps | grep -sq ${pid}.*[r]torrent ; then
+	    running=1
+	fi
+    fi
+}
+
+
+start() {
+    [ -d "${base}" ] && cd "${base}"
+    if ! screen -ls | grep -sq "\.${srnname}[[:space:]]" ; then
+	HOME="/root" TERM=xterm-256color LANG=en_US.UTF-8 screen -Udm -T xterm-256color -S ${srnname} -t shell sh
+	HOME="/root" TERM=xterm-256color LANG=en_US.UTF-8 screen -US "${srnname}" -X screen -U -T xterm-256color -t mc mc
+    fi
+    isRunning
+    if [ "$running" -eq 0 ] ; then
+	HOME="/root" TERM=xterm-256color LANG=en_US.UTF-8 screen -US "${srnname}" -X screen -U -T xterm-256color -t rtorrent rtorrent
+    fi
+}
+
+
+stop() {
+    isRunning
+    if [ "$running" -eq 1 ] ; then
+	kill -s INT ${pid}
+    fi
+}
+
